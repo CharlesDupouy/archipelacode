@@ -53,13 +53,13 @@ const btnSendChat = document.getElementById(
 ) as HTMLButtonElement;
 
 // Tab switcher
-document.querySelectorAll(".tab-btn").forEach((btn) => {
+document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => {
     document
-      .querySelectorAll(".tab-btn")
+      .querySelectorAll(".nav-item")
       .forEach((b) => b.classList.remove("active"));
     document
-      .querySelectorAll(".tab-content")
+      .querySelectorAll(".tab-panel")
       .forEach((c) => c.classList.remove("active"));
     btn.classList.add("active");
     const tabName = btn.getAttribute("data-tab");
@@ -271,14 +271,14 @@ function renderProblems() {
     const card = document.createElement("div");
     card.className = "problem-card";
 
-    let statusIcon = "●";
-    let statusColor = "#3b82f6";
+    let statusLabel = "Available";
+    let statusClass = "status-available";
     if (prob.category === ProblemCategory.Solved) {
-      statusIcon = "✓";
-      statusColor = "#10b981";
+      statusLabel = "Solved";
+      statusClass = "status-solved";
     } else if (prob.category === ProblemCategory.Locked) {
-      statusIcon = "🔒";
-      statusColor = "#f59e0b";
+      statusLabel = "Locked";
+      statusClass = "status-locked";
     }
 
     card.innerHTML = `
@@ -286,7 +286,7 @@ function renderProblems() {
         <span class="diff-tag ${prob.difficulty}">${prob.difficulty.slice(0, 4)}</span>
         <span class="problem-title" title="${prob.title}">${prob.title}</span>
       </div>
-      <span class="problem-status-icon" style="color:${statusColor};">${statusIcon}</span>
+      <span class="problem-status ${statusClass}">${statusLabel}</span>
     `;
 
     // Click to navigate active tab to LeetCode problem
@@ -323,10 +323,10 @@ function renderInventory() {
     const isUnlocked = unlockedIds.has(itemId);
 
     const pill = document.createElement("div");
-    pill.className = `item-pill ${isUnlocked ? "unlocked" : "locked"}`;
+    pill.className = `feature-card ${isUnlocked ? "unlocked" : "locked"}`;
     pill.innerHTML = `
-      <span>${isUnlocked ? "✓" : "🔒"}</span>
-      <span>${name}</span>
+      <code class="feature-syntax">${name}</code>
+      <span class="feature-state">${isUnlocked ? "Available" : "Locked"}</span>
     `;
     pythonInventoryGrid.appendChild(pill);
   }
@@ -341,13 +341,15 @@ function renderInventory() {
     ),
   );
 
-  const specialSummary = document.createElement("div");
-  specialSummary.className = "prog-card";
-  specialSummary.innerHTML = `
-    <span>AI Assistants Unlocked: <strong>${assistants.length}</strong></span>
-    <span>Traps Triggered: <strong style="color:#ef4444;">${traps.length}</strong></span>
-  `;
-  specialInventoryList.appendChild(specialSummary);
+  if (traps.length > 0 || assistants.length > 0) {
+    const specialSummary = document.createElement("div");
+    specialSummary.className = "batch-card";
+    specialSummary.innerHTML = `
+      <span>Helpers: <strong>${assistants.length}</strong></span>
+      <span>Traps: <strong style="color:#ef4444;">${traps.length}</strong></span>
+    `;
+    specialInventoryList.appendChild(specialSummary);
+  }
 }
 
 function renderChat() {
