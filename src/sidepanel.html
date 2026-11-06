@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ArchipelaCode</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <img src="icons/archipelago_icon128x128.png" alt="Archipelago" class="logo">
+      <h1>ArchipelaCode</h1>
+    </div>
+    <div id="status-pill" class="status-pill disconnected">
+      <span class="status-dot"></span>
+      <span id="status-text">Disconnected</span>
+    </div>
+  </header>
+
+  <!-- Connect Box (Visible when disconnected) -->
+  <section id="connect-section" class="panel-card">
+    <h2>Connect to Archipelago</h2>
+    <div class="form-group">
+      <label for="input-host">Server Host</label>
+      <input type="text" id="input-host" value="archipelago.gg" placeholder="archipelago.gg">
+    </div>
+    <div class="form-row">
+      <div class="form-group flex-1">
+        <label for="input-port">Port</label>
+        <input type="number" id="input-port" placeholder="38281">
+      </div>
+      <div class="form-group flex-2">
+        <label for="input-slot">Slot Name</label>
+        <input type="text" id="input-slot" placeholder="Player1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="input-pass">Password (optional)</label>
+      <input type="password" id="input-pass" placeholder="Room password">
+    </div>
+    <button id="btn-connect" class="btn btn-primary">Connect</button>
+  </section>
+
+  <!-- Main Active Content (Visible when connected) -->
+  <main id="active-section" style="display: none;">
+    <!-- Progress & Goal Bar -->
+    <div class="goal-card">
+      <div class="goal-header">
+        <span class="goal-title">Multiworld Goal</span>
+        <span id="goal-counter" class="goal-counter">0 / 0 (0%)</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="goal-progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
+      </div>
+      <div class="goal-footer">
+        <span id="slot-display" class="slot-display">Slot: -</span>
+        <span id="deathlink-badge" class="badge badge-deathlink" style="display: none;">💀 DeathLink Active</span>
+        <button id="btn-disconnect" class="btn-text">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="problems">Problems</button>
+      <button class="tab-btn" data-tab="inventory">Inventory</button>
+      <button class="tab-btn" data-tab="chat">Chat / Log</button>
+    </nav>
+
+    <!-- Problems Tab -->
+    <section id="tab-problems" class="tab-content active">
+      <div class="filters-bar">
+        <input type="text" id="problem-search" placeholder="Search problems..." class="search-input">
+      </div>
+      <div class="category-filters">
+        <button class="filter-pill active" data-cat="Available">Available (<span id="count-available">0</span>)</button>
+        <button class="filter-pill" data-cat="Solved">Solved (<span id="count-solved">0</span>)</button>
+        <button class="filter-pill" data-cat="Locked">Locked (<span id="count-locked">0</span>)</button>
+        <button class="filter-pill" data-cat="All">All (<span id="count-all">0</span>)</button>
+      </div>
+      <div class="difficulty-filters">
+        <button class="diff-btn active" data-diff="all">All</button>
+        <button class="diff-btn diff-easy" data-diff="EASY">Easy</button>
+        <button class="diff-btn diff-medium" data-diff="MEDIUM">Medium</button>
+        <button class="diff-btn diff-hard" data-diff="HARD">Hard</button>
+      </div>
+      <div id="problems-list" class="problems-list">
+        <!-- Rendered by sidepanel.ts -->
+      </div>
+    </section>
+
+    <!-- Inventory Tab -->
+    <section id="tab-inventory" class="tab-content">
+      <div class="inventory-section">
+        <h3>Progressive Unlocks</h3>
+        <div id="progressive-unlocks-card" class="prog-card">
+          <span>Problem Batches Unlocked:</span>
+          <strong id="prog-count">1 / 5 (20%)</strong>
+        </div>
+
+        <h3>Python Language Features</h3>
+        <p class="section-desc">Unlock these items in Archipelago to use them in your code:</p>
+        <div id="python-inventory-grid" class="inventory-grid">
+          <!-- Rendered by sidepanel.ts -->
+        </div>
+
+        <h3>Special Items</h3>
+        <div id="special-inventory-list" class="special-list">
+          <!-- Rendered by sidepanel.ts -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Chat & Log Tab -->
+    <section id="tab-chat" class="tab-content">
+      <div id="chat-messages" class="chat-feed">
+        <!-- Rendered by sidepanel.ts -->
+      </div>
+      <div class="chat-input-bar">
+        <input type="text" id="chat-input" placeholder="Type !hint <item>, !status, or chat...">
+        <button id="btn-send-chat" class="btn btn-secondary">Send</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

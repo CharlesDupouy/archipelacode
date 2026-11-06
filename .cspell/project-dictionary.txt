@@ -10,3 +10,11 @@ docstrings
 unpick
 progression
 vsix
+sidepanel
+offscreen
+deathlink
+monaco
+interceptor
+unpacked
+subagent
+recompiles

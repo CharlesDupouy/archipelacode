@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "ArchipelaCode",
+  "version": "0.1.0",
+  "description": "Archipelago Multiworld Randomizer integration for LeetCode",
+  "icons": {
+    "16": "icons/archipelago_icon128x128.png",
+    "48": "icons/archipelago_icon128x128.png",
+    "128": "icons/archipelago_icon128x128.png"
+  },
+  "action": {
+    "default_title": "Open ArchipelaCode Side Panel",
+    "default_icon": "icons/archipelago_icon128x128.png"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "sidePanel", "tabs", "offscreen"],
+  "host_permissions": [
+    "*://*.leetcode.com/*",
+    "*://*.leetcode.cn/*",
+    "wss://*/*",
+    "ws://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://leetcode.com/problems/*",
+        "*://*.leetcode.com/problems/*",
+        "*://leetcode.cn/problems/*",
+        "*://*.leetcode.cn/problems/*"
+      ],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["pageInterceptor.js", "icons/*"],
+      "matches": ["*://*.leetcode.com/*", "*://*.leetcode.cn/*"]
+    }
+  ]
+}

@@ -1,31 +1,27 @@
 //@ts-check
-
 'use strict';
 
 const path = require('path');
+const CopyPlugin = require('copy-webpack-plugin');
 
-//@ts-check
-/** @typedef {import('webpack').Configuration} WebpackConfig **/
-
-/** @type WebpackConfig */
-const extensionConfig = {
-  target: 'node', // VS Code extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
-	mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
-
-  entry: './src/extension.ts', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
-  output: {
-    // the bundle is stored in the 'dist' folder (check package.json), 📖 -> https://webpack.js.org/configuration/output/
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'extension.js',
-    libraryTarget: 'commonjs2'
+/** @type {import('webpack').Configuration} */
+const chromeExtensionConfig = {
+  mode: 'production',
+  devtool: 'cheap-module-source-map',
+  entry: {
+    background: './src/background.ts',
+    sidepanel: './src/sidepanel.ts',
+    contentScript: './src/contentScript.ts',
+    pageInterceptor: './src/pageInterceptor.ts',
+    offscreen: './src/offscreen.ts',
   },
-  externals: {
-    vscode: 'commonjs vscode' // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
-    // modules added here also need to be added in the .vscodeignore file
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: '[name].js',
+    clean: true,
   },
   resolve: {
-    // support reading TypeScript and JavaScript files, 📖 -> https://github.com/TypeStrong/ts-loader
-    extensions: ['.ts', '.js']
+    extensions: ['.ts', '.js', '.json'],
   },
   module: {
     rules: [
@@ -34,15 +30,29 @@ const extensionConfig = {
         exclude: /node_modules/,
         use: [
           {
-            loader: 'ts-loader'
-          }
-        ]
-      }
-    ]
+            loader: 'ts-loader',
+            options: {
+              transpileOnly: true,
+            },
+          },
+        ],
+      },
+    ],
   },
-  devtool: 'nosources-source-map',
-  infrastructureLogging: {
-    level: "log", // enables logging required for problem matchers
+  plugins: [
+    new CopyPlugin({
+      patterns: [
+        { from: 'src/manifest.json', to: 'manifest.json' },
+        { from: 'src/sidepanel.html', to: 'sidepanel.html' },
+        { from: 'src/sidepanel.css', to: 'sidepanel.css' },
+        { from: 'src/offscreen.html', to: 'offscreen.html' },
+        { from: 'resources', to: 'icons' },
+      ],
+    }),
+  ],
+  performance: {
+    hints: false,
   },
 };
-module.exports = [ extensionConfig ];
+
+module.exports = [chromeExtensionConfig];

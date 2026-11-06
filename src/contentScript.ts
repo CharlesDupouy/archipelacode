@@ -1,0 +1,244 @@
+/** @format */
+import {
+  ExtensionState,
+  MessagePayload,
+  ProblemCategory,
+} from "./shared/types";
+
+(() => {
+  let currentState: ExtensionState | null = null;
+
+  // 1. Inject the page interceptor script into the MAIN page world
+  function injectScript(file: string) {
+    const s = document.createElement("script");
+    s.src = chrome.runtime.getURL(file);
+    s.onload = () => s.remove();
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  injectScript("pageInterceptor.js");
+
+  // 2. Fetch current state from storage
+  chrome.storage.local.get("archipelacodeState", (res) => {
+    if (res.archipelacodeState) {
+      updateState(res.archipelacodeState);
+    }
+  });
+
+  // Request latest state from background
+  chrome.runtime.sendMessage({ type: "GET_STATE" }).catch(() => {});
+
+  // 3. Listen for state updates and notifications from background
+  chrome.runtime.onMessage.addListener((message: MessagePayload) => {
+    if (message.type === "STATE_UPDATED") {
+      updateState(message.state);
+    } else if (message.type === "ITEM_RECEIVED") {
+      showToast(
+        message.isTrap ? "⚠️" : "🎁",
+        message.isTrap ? "TRAP ACTIVATED!" : "Archipelago Item Received!",
+        `Received ${message.itemName} from ${message.sender}`,
+        message.isTrap ? "#f59e0b" : "#10b981",
+      );
+    } else if (message.type === "DEATH_LINK_RECEIVED") {
+      showToast(
+        "💀",
+        "DeathLink Received!",
+        `${message.source} died${message.cause ? `: ${message.cause}` : ""}`,
+        "#ef4444",
+      );
+    }
+  });
+
+  function updateState(state: ExtensionState) {
+    currentState = state;
+
+    // Send unlocked items to pageInterceptor
+    window.postMessage(
+      {
+        type: "ARCHIPELACODE_UPDATE_ITEMS",
+        unlockedItemIds: state.unlockedItemIds || [],
+      },
+      "*",
+    );
+
+    updateFloatingBadge();
+  }
+
+  // 4. Listen for messages from pageInterceptor
+  window.addEventListener("message", (event) => {
+    if (event.source !== window || !event.data) return;
+
+    if (event.data.type === "ARCHIPELACODE_GET_ITEMS") {
+      window.postMessage(
+        {
+          type: "ARCHIPELACODE_UPDATE_ITEMS",
+          unlockedItemIds: currentState?.unlockedItemIds || [],
+        },
+        "*",
+      );
+    } else if (event.data.type === "ARCHIPELACODE_ACCEPTED") {
+      const titleSlug = event.data.titleSlug;
+      showToast(
+        "🎉",
+        "Problem Cleared!",
+        `Accepted by LeetCode! Sending check for "${titleSlug}" to Archipelago...`,
+        "#10b981",
+      );
+      chrome.runtime
+        .sendMessage({
+          type: "SEND_CHECK",
+          titleSlug,
+        } as MessagePayload)
+        .catch(() => {});
+    } else if (event.data.type === "ARCHIPELACODE_FAILED") {
+      const titleSlug = event.data.titleSlug;
+      const statusMsg = event.data.statusMsg;
+
+      if (currentState?.deathLinkEnabled) {
+        showToast(
+          "💀",
+          "DeathLink Triggered!",
+          `Submission failed (${statusMsg}) on "${titleSlug}". Sending death to multiworld...`,
+          "#ef4444",
+        );
+        chrome.runtime
+          .sendMessage({
+            type: "SEND_DEATH_LINK",
+            cause: `failed test cases (${statusMsg}) on "${titleSlug}"`,
+          } as MessagePayload)
+          .catch(() => {});
+      }
+    }
+  });
+
+  // 5. In-page Toast Notifications
+  function showToast(
+    icon: string,
+    title: string,
+    text: string,
+    color = "#10b981",
+  ) {
+    let container = document.getElementById("archipelacode-toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "archipelacode-toast-container";
+      container.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 9999999;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        pointer-events: none;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      `;
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement("div");
+    toast.style.cssText = `
+      background: #18181b;
+      border: 1px solid ${color};
+      border-radius: 8px;
+      padding: 12px 18px;
+      color: #ffffff;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      max-width: 380px;
+      pointer-events: auto;
+      transition: all 0.3s ease;
+    `;
+
+    toast.innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">${icon}</span>
+        <strong style="color:${color}; font-size:14px;">${title}</strong>
+      </div>
+      <p style="font-size:12px; color:#e4e4e7; margin:6px 0 0 0; line-height:1.4;">
+        ${text}
+      </p>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 400);
+    }, 5000);
+  }
+
+  // 6. Floating Status Badge on LeetCode Problem Page
+  function updateFloatingBadge() {
+    const match = window.location.pathname.match(/\/problems\/([^/]+)/);
+    if (!match) return;
+    const titleSlug = match[1];
+
+    let badge = document.getElementById("archipelacode-floating-badge");
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = "archipelacode-floating-badge";
+      badge.style.cssText = `
+        position: fixed;
+        top: 60px;
+        right: 20px;
+        z-index: 999999;
+        background: rgba(24, 24, 27, 0.95);
+        backdrop-filter: blur(8px);
+        border: 1px solid #3f3f46;
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s ease;
+      `;
+      badge.onclick = () => {
+        chrome.runtime.sendMessage({ type: "GET_STATE" });
+      };
+      document.body.appendChild(badge);
+    }
+
+    if (!currentState || currentState.status !== "CONNECTED") {
+      badge.innerHTML = `<span style="color:#a1a1aa;">●</span> ArchipelaCode: Disconnected`;
+      badge.style.borderColor = "#3f3f46";
+      return;
+    }
+
+    const problem = currentState.problems.find(
+      (p) => p.titleSlug === titleSlug,
+    );
+    if (!problem) {
+      badge.innerHTML = `<span style="color:#71717a;">●</span> ArchipelaCode: Not in Multiworld Pool`;
+      badge.style.borderColor = "#3f3f46";
+      return;
+    }
+
+    if (problem.category === ProblemCategory.Solved) {
+      badge.innerHTML = `<span style="color:#10b981;">✓</span> ArchipelaCode: Check Cleared`;
+      badge.style.borderColor = "#10b981";
+    } else if (problem.category === ProblemCategory.Locked) {
+      badge.innerHTML = `<span style="color:#f59e0b;">🔒</span> ArchipelaCode: Region Locked`;
+      badge.style.borderColor = "#f59e0b";
+    } else {
+      badge.innerHTML = `<span style="color:#3b82f6;">●</span> ArchipelaCode: Check Available (${problem.difficulty})`;
+      badge.style.borderColor = "#3b82f6";
+    }
+  }
+
+  // Monitor URL changes in SPA
+  let lastUrl = location.href;
+  new MutationObserver(() => {
+    const url = location.href;
+    if (url !== lastUrl) {
+      lastUrl = url;
+      updateFloatingBadge();
+    }
+  }).observe(document, { subtree: true, childList: true });
+})();

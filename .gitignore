@@ -4,6 +4,7 @@ node_modules
 .vscode-test/
 *.vsix
 *.apworld
+*.zip
 
 licenses.txt
 test-fetch.js
