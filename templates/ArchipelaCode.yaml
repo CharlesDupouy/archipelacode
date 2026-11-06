@@ -1,0 +1,12 @@
+# Archipelago Player Configuration for ArchipelaCode
+name: Player1
+game: ArchipelaCode
+description: Solo ArchipelaCode Playtest
+
+ArchipelaCode:
+  progression_balancing: 50
+  TotalProblemCount: 30
+  EndGoal: 60
+  LanguageChoice: python
+  death_link: false
+  enable_traps: false

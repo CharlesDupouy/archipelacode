@@ -13,6 +13,7 @@
     "compile": "webpack",
     "watch": "webpack --watch",
     "build:apworld": "python3 apworld/build_apworld.py",
+    "setup:server": "bash scripts/setup_local_server.sh",
     "package:extension": "webpack && python3 scripts/package_extension.py",
     "package:all": "npm run build:apworld && npm run package:extension",
     "lint": "eslint src",
