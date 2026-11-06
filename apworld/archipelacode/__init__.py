@@ -161,82 +161,44 @@ class ArchipelaCodeWorld(World):
         # for key, values in locations_by_feature_count.items():
         # print(f"{key}: {len(values)}")
 
-        max_amount_of_features: int = self.random.randint(14, 16)
+        # Guarantee enough zero-feature starter problems so logic fill is never blocked
+        zero_locations = locations_by_feature_count.get("0", [])
+        starter_count = min(len(zero_locations), max(6, math.ceil(self.options.TotalProblemCount * 0.20)))
+        self.included_locations.extend(self.random.sample(zero_locations, k=starter_count))
 
-        amount_of_each_group: int = math.floor(self.options.TotalProblemCount / max_amount_of_features)
-        extra_locations_needed: int = self.options.TotalProblemCount % max_amount_of_features
+        remaining_needed = self.options.TotalProblemCount - len(self.included_locations)
+        max_amount_of_features: int = 12
 
-        group_amounts: dict[str, int] = {}
-        leftovers: int = 0
-        for feature_amount, locations in locations_by_feature_count.items():
-            if int(feature_amount) >= max_amount_of_features:
-                continue
-            if len(locations) < amount_of_each_group:
-                group_amounts[feature_amount] = len(locations)
-                leftovers += amount_of_each_group - len(locations)
+        # Distribute remaining problems across tiers 1..max_amount_of_features
+        available_tiers = [f for f in locations_by_feature_count.keys() if f != "0" and int(f) <= max_amount_of_features]
+        tier_idx = 0
+        while remaining_needed > 0 and available_tiers:
+            tier = available_tiers[tier_idx % len(available_tiers)]
+            candidates = [l for l in locations_by_feature_count[tier] if l not in self.included_locations]
+            if candidates:
+                self.included_locations.append(self.random.choice(candidates))
+                remaining_needed -= 1
             else:
-                group_amounts[feature_amount] = amount_of_each_group
+                available_tiers.remove(tier)
+            tier_idx += 1
 
-        leftovers += extra_locations_needed
-
-        while leftovers > 0:
-            for feature_amount, locations in locations_by_feature_count.items():
-                if (
-                    int(feature_amount) >= max_amount_of_features
-                    or group_amounts[feature_amount] >= len(locations)
-                    or leftovers == 0
-                ):
-                    continue
-                group_amounts[feature_amount] += 1
-                leftovers -= 1
-
-        for feature_amount, locations in locations_by_feature_count.items():
-            if int(feature_amount) >= max_amount_of_features:
-                continue
-            self.included_locations.extend(
-                self.random.sample(
-                    locations,
-                    k=group_amounts[feature_amount],
-                    # k=min(
-                    # (
-                    # amount_of_each_group + extra_locations_needed
-                    # if int(feature_amount) == 0
-                    # else amount_of_each_group
-                    # ),
-                    # (self.options.TotalProblemCount - len(self.included_locations)),
-                    # ),
-                )
+        # Sort so that early regions receive low-feature problems
+        self.included_locations.sort(
+            key=lambda loc: statistics.mean(
+                len(required_features) for required_features in loc.required_features.values()
             )
+        )
 
-        # self.included_locations.extend(
-        # self.random.sample(
-        # locations_by_feature_count["0"],
-        # k=max(
-        # len(location_title_slugs_by_feature_count["0"]),
-        # math.floor(ZERO_REQUIRED_PERCENTAGE * self.options.TotalProblemCount),
-        # ),
-        # )
-        # )
-
-        # self.included_locations.extend(
-        # self.random.sample(
-        # easy_locations, k=round(self.options.TotalProblemCount * 0.4 * (1.0 - ZERO_REQUIRED_PERCENTAGE))
-        # )
-        # )
-        # self.included_locations.extend(
-        # self.random.sample(
-        # medium_locations, k=round(self.options.TotalProblemCount * 0.3 * (1.0 - ZERO_REQUIRED_PERCENTAGE))
-        # )
-        # )
-        # self.included_locations.extend(
-        # self.random.sample(
-        # hard_locations, k=round(self.options.TotalProblemCount * 0.3 * (1.0 - ZERO_REQUIRED_PERCENTAGE))
-        # )
-        # )
-
-        self.included_locations = self.lightly_shuffle(
-            self.included_locations, 0.12
-        )  # Makes it so you don't only get easy problems in the first few batches, while still giving you generally easier problems at the start
+        # Shuffle locally within each region batch for variety
+        slice_size = max(1, len(self.included_locations) // 5)
+        shuffled: list[LocData] = []
+        for i in range(5):
+            start = i * slice_size
+            end = (i + 1) * slice_size if i < 4 else len(self.included_locations)
+            batch = self.included_locations[start:end]
+            self.random.shuffle(batch)
+            shuffled.extend(batch)
+        self.included_locations = shuffled
 
         # print("Regions:")
         # for index, loc_arrays in enumerate(split_array(self.included_locations, 5), 1):

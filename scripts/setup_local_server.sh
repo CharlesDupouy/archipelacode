@@ -19,6 +19,10 @@ if [ ! -f "ArchipelagoServer" ]; then
     echo "==> Extracting ${TAR_FILE}..."
     tar -xzf "${TAR_FILE}"
     rm -f "${TAR_FILE}"
+    if [ -d "Archipelago" ]; then
+        find Archipelago/ -mindepth 1 -maxdepth 1 ! -name "Players" -exec mv -t . {} +
+        rm -rf Archipelago
+    fi
 fi
 
 # Ensure custom_worlds exists and install apworld
