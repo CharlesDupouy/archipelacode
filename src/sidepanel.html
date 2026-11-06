@@ -70,8 +70,8 @@
         <span id="tab-badge-problems" class="nav-count">0</span>
       </button>
       <button class="nav-item" data-tab="inventory">
-        <span class="nav-label">Language Features</span>
-        <span id="tab-badge-inventory" class="nav-count">0 / 20</span>
+        <span class="nav-label">Inventory</span>
+        <span id="tab-badge-inventory" class="nav-count">0 Items</span>
       </button>
       <button class="nav-item" data-tab="chat">
         <span class="nav-label">Multiworld Log</span>
@@ -105,20 +105,38 @@
     <!-- Inventory View -->
     <section id="tab-inventory" class="tab-panel">
       <div class="inventory-container">
+        <!-- Section 1: Received Multiworld Items -->
+        <div class="section-title-row">
+          <span class="section-title">Received Items</span>
+          <span id="received-items-count" class="section-counter">0 Items</span>
+        </div>
+        <div id="received-items-list" class="received-items-container">
+          <!-- Rendered by sidepanel.ts -->
+        </div>
+
+        <!-- Section 2: Problem Batch Progression -->
+        <div class="section-title-row" style="margin-top: 10px;">
+          <span class="section-title">Problem Batch Progression</span>
+        </div>
         <div class="batch-card">
-          <span class="batch-title">Problem Batches Unlocked</span>
+          <div class="batch-card-left">
+            <span class="batch-title">Batches Accessible</span>
+            <span id="prog-batch-detail" class="batch-subtitle">Starter Problems accessible</span>
+          </div>
           <span id="prog-count" class="batch-value">1 / 5</span>
         </div>
 
-        <div class="section-title-row">
-          <span class="section-title">Python 3 Syntax Unlocks</span>
+        <!-- Section 3: Python 3 Syntax Features -->
+        <div class="section-title-row" style="margin-top: 10px;">
+          <span class="section-title">Python 3 Syntax Features</span>
+          <span id="syntax-unlocked-count" class="section-counter">0 / 20 Available</span>
         </div>
         <div id="python-inventory-grid" class="features-grid">
           <!-- Rendered by sidepanel.ts -->
         </div>
 
-        <div id="special-inventory-list" class="special-container">
-          <!-- Rendered by sidepanel.ts -->
+        <div id="special-inventory-list" class="special-container" style="display: none;">
+          <!-- Retained for compatibility -->
         </div>
       </div>
     </section>

@@ -43,8 +43,12 @@ const countLocked = document.getElementById("count-locked")!;
 const countAll = document.getElementById("count-all")!;
 
 const progCount = document.getElementById("prog-count")!;
+const progBatchDetail = document.getElementById("prog-batch-detail");
+const receivedItemsList = document.getElementById("received-items-list");
+const receivedItemsCount = document.getElementById("received-items-count");
+const syntaxUnlockedCount = document.getElementById("syntax-unlocked-count");
 const pythonInventoryGrid = document.getElementById("python-inventory-grid")!;
-const specialInventoryList = document.getElementById("special-inventory-list")!;
+const specialInventoryList = document.getElementById("special-inventory-list");
 
 const chatMessages = document.getElementById("chat-messages")!;
 const chatInput = document.getElementById("chat-input") as HTMLInputElement;
@@ -232,9 +236,16 @@ function renderCounters() {
 
   const badgeProblems = document.getElementById("tab-badge-problems");
   if (badgeProblems) badgeProblems.textContent = String(available);
+
   const badgeInventory = document.getElementById("tab-badge-inventory");
-  if (badgeInventory)
-    badgeInventory.textContent = `${state.unlockedItemIds.length} unlocked`;
+  if (badgeInventory) {
+    const totalItems = state.unlockedItemIds?.length || 0;
+    const pythonIds = Object.keys(PYTHON_ITEM_MAP).map(Number);
+    const syntaxCount = pythonIds.filter((id) =>
+      state.unlockedItemIds.includes(id),
+    ).length;
+    badgeInventory.textContent = `${totalItems} Item${totalItems === 1 ? "" : "s"} (${syntaxCount}/20 Syntax)`;
+  }
 }
 
 function renderProblems() {
@@ -305,50 +316,200 @@ function renderProblems() {
   });
 }
 
+function getItemMeta(
+  id: number,
+  nameFallback?: string,
+): {
+  name: string;
+  type: "progression" | "syntax" | "helper" | "trap" | "item";
+  tag: string;
+  description: string;
+} {
+  const pythonItem = PYTHON_ITEM_MAP[id];
+  if (pythonItem) {
+    return {
+      name: pythonItem,
+      type: "syntax",
+      tag: "Syntax",
+      description: "Python language syntax feature",
+    };
+  }
+
+  if (id === 6700902002 || nameFallback === "Progressive Problem Unlock") {
+    return {
+      name: "Progressive Problem Unlock",
+      type: "progression",
+      tag: "Progression",
+      description: "Unlocks next problem batch in multiworld",
+    };
+  }
+
+  const knownHelpers: Record<number, string> = {
+    6700901000: "Github Copilot",
+    6700901001: "Claude Code",
+    6700901002: "Cursor",
+    6700901003: "Google Jules",
+    6700901004: "Gemini Code Assist",
+    6700901005: "ChatGPT",
+    6700901006: "Aider",
+  };
+  if (knownHelpers[id]) {
+    return {
+      name: knownHelpers[id],
+      type: "helper",
+      tag: "Helper",
+      description: "AI Assistant (Multiworld Filler)",
+    };
+  }
+
+  const knownTraps: Record<number, string> = {
+    6700901500: "Syntax Error Trap",
+    6700901501: "Runtime Error Trap",
+    6700901502: "Time Limit Exceeded Trap",
+  };
+  if (knownTraps[id]) {
+    return {
+      name: knownTraps[id],
+      type: "trap",
+      tag: "Trap",
+      description: "Multiworld Trap",
+    };
+  }
+
+  const name = nameFallback || `Item #${id}`;
+  const lower = name.toLowerCase();
+  if (lower.includes("trap")) {
+    return { name, type: "trap", tag: "Trap", description: "Multiworld Trap" };
+  }
+  if (
+    ["copilot", "claude", "cursor", "chatgpt", "aider", "jules", "gemini"].some(
+      (k) => lower.includes(k),
+    )
+  ) {
+    return {
+      name,
+      type: "helper",
+      tag: "Helper",
+      description: "AI Assistant (Filler)",
+    };
+  }
+  if (
+    lower.includes("unlock") ||
+    lower.includes("key") ||
+    lower.includes("progressive")
+  ) {
+    return {
+      name,
+      type: "progression",
+      tag: "Progression",
+      description: "Multiworld Progression",
+    };
+  }
+
+  return { name, type: "item", tag: "Item", description: "Archipelago Item" };
+}
+
 function renderInventory() {
-  if (!state || !pythonInventoryGrid) return;
-  pythonInventoryGrid.innerHTML = "";
+  if (!state) return;
 
   const unlockedIds = new Set(state.unlockedItemIds || []);
+  const totalReceived = state.unlockedItemIds?.length || 0;
 
-  // 1. Progressive unlocks
+  // 1. Render Received Items List
+  if (receivedItemsCount) {
+    receivedItemsCount.textContent = `${totalReceived} Item${totalReceived === 1 ? "" : "s"}`;
+  }
+
+  if (receivedItemsList) {
+    receivedItemsList.innerHTML = "";
+    if (totalReceived === 0) {
+      receivedItemsList.innerHTML = `<div class="empty-inventory-note">No items received yet. Solve available problems to unlock multiworld items.</div>`;
+    } else {
+      const itemMap = new Map<
+        string,
+        {
+          id: number;
+          name: string;
+          count: number;
+          meta: ReturnType<typeof getItemMeta>;
+        }
+      >();
+
+      for (let i = 0; i < totalReceived; i++) {
+        const id = state.unlockedItemIds[i];
+        const nameFallback = state.unlockedItemNames?.[i];
+        const meta = getItemMeta(id, nameFallback);
+        const existing = itemMap.get(meta.name);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          itemMap.set(meta.name, { id, name: meta.name, count: 1, meta });
+        }
+      }
+
+      itemMap.forEach(({ name, count, meta }) => {
+        const card = document.createElement("div");
+        card.className = `received-item-card ${meta.type}`;
+
+        let detailText = meta.description;
+        if (meta.name === "Progressive Problem Unlock") {
+          detailText =
+            count === 1 ?
+              "Extra Batch 1 unlocked (Batch 2 of 5 accessible)"
+            : `Extra Batches 1-${count} unlocked (Batch ${1 + count} of 5 accessible)`;
+        }
+
+        card.innerHTML = `
+          <div class="received-item-info">
+            <span class="received-item-name">${name}</span>
+            <span class="received-item-desc">${detailText}</span>
+          </div>
+          <div class="received-item-meta">
+            <span class="item-tag tag-${meta.type}">${meta.tag}</span>
+            <span class="item-qty">x${count}</span>
+          </div>
+        `;
+        receivedItemsList.appendChild(card);
+      });
+    }
+  }
+
+  // 2. Problem Batch Progression
   const progCountValue =
     state.unlockedItemIds?.filter((id) => id === 6700902002).length || 0;
   const totalProgBatches = 1 + progCountValue;
   progCount.textContent = `${totalProgBatches} / 5 (${totalProgBatches * 20}%)`;
-
-  // 2. Python language features
-  for (const [idStr, name] of Object.entries(PYTHON_ITEM_MAP)) {
-    const itemId = Number(idStr);
-    const isUnlocked = unlockedIds.has(itemId);
-
-    const pill = document.createElement("div");
-    pill.className = `feature-card ${isUnlocked ? "unlocked" : "locked"}`;
-    pill.innerHTML = `
-      <code class="feature-syntax">${name}</code>
-      <span class="feature-state">${isUnlocked ? "Available" : "Locked"}</span>
-    `;
-    pythonInventoryGrid.appendChild(pill);
+  if (progBatchDetail) {
+    progBatchDetail.textContent =
+      progCountValue === 0 ?
+        "Starter Problems accessible"
+      : `Starter Problems + Extra Batches 1-${progCountValue} accessible`;
   }
 
-  // 3. Special items (Traps & Assistants)
-  specialInventoryList.innerHTML = "";
-  const itemNames = state.unlockedItemNames || [];
-  const traps = itemNames.filter((name) => name.toLowerCase().includes("trap"));
-  const assistants = itemNames.filter((name) =>
-    ["copilot", "claude", "cursor", "chatgpt", "aider", "jules", "gemini"].some(
-      (k) => name.toLowerCase().includes(k),
-    ),
-  );
+  // 3. Python 3 Syntax Features Grid
+  if (pythonInventoryGrid) {
+    pythonInventoryGrid.innerHTML = "";
+    const pythonIds = Object.keys(PYTHON_ITEM_MAP).map(Number);
+    const unlockedSyntaxCount = pythonIds.filter((id) =>
+      unlockedIds.has(id),
+    ).length;
 
-  if (traps.length > 0 || assistants.length > 0) {
-    const specialSummary = document.createElement("div");
-    specialSummary.className = "batch-card";
-    specialSummary.innerHTML = `
-      <span>Helpers: <strong>${assistants.length}</strong></span>
-      <span>Traps: <strong style="color:#ef4444;">${traps.length}</strong></span>
-    `;
-    specialInventoryList.appendChild(specialSummary);
+    if (syntaxUnlockedCount) {
+      syntaxUnlockedCount.textContent = `${unlockedSyntaxCount} / 20 Available`;
+    }
+
+    for (const [idStr, name] of Object.entries(PYTHON_ITEM_MAP)) {
+      const itemId = Number(idStr);
+      const isUnlocked = unlockedIds.has(itemId);
+
+      const pill = document.createElement("div");
+      pill.className = `feature-card ${isUnlocked ? "unlocked" : "locked"}`;
+      pill.innerHTML = `
+        <code class="feature-syntax">${name}</code>
+        <span class="feature-state">${isUnlocked ? "Available" : "Locked"}</span>
+      `;
+      pythonInventoryGrid.appendChild(pill);
+    }
   }
 }
 
