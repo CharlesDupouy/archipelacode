@@ -34,17 +34,15 @@ import {
       updateState(message.state);
     } else if (message.type === "ITEM_RECEIVED") {
       showToast(
-        message.isTrap ? "⚠️" : "🎁",
-        message.isTrap ? "TRAP ACTIVATED!" : "Archipelago Item Received!",
+        message.isTrap ? "trap" : "item",
+        message.isTrap ? "TRAP ACTIVATED" : "Archipelago Item Received",
         `Received ${message.itemName} from ${message.sender}`,
-        message.isTrap ? "#f59e0b" : "#10b981",
       );
     } else if (message.type === "DEATH_LINK_RECEIVED") {
       showToast(
-        "💀",
-        "DeathLink Received!",
+        "death",
+        "DeathLink Received",
         `${message.source} died${message.cause ? `: ${message.cause}` : ""}`,
-        "#ef4444",
       );
     }
   });
@@ -78,11 +76,22 @@ import {
       );
     } else if (event.data.type === "ARCHIPELACODE_ACCEPTED") {
       const titleSlug = event.data.titleSlug;
+      const problem = currentState?.problems.find(
+        (p) => p.titleSlug === titleSlug,
+      );
+      if (!problem) {
+        // Not in current multiworld pool
+        return;
+      }
+      if (problem.category === ProblemCategory.Solved) {
+        // Already cleared
+        return;
+      }
+
       showToast(
-        "🎉",
-        "Problem Cleared!",
+        "cleared",
+        "Problem Cleared",
         `Accepted by LeetCode! Sending check for "${titleSlug}" to Archipelago...`,
-        "#10b981",
       );
       chrome.runtime
         .sendMessage({
@@ -94,12 +103,19 @@ import {
       const titleSlug = event.data.titleSlug;
       const statusMsg = event.data.statusMsg;
 
+      const problem = currentState?.problems.find(
+        (p) => p.titleSlug === titleSlug,
+      );
+      if (!problem) {
+        // Not in multiworld pool, don't trigger deathlink
+        return;
+      }
+
       if (currentState?.deathLinkEnabled) {
         showToast(
-          "💀",
-          "DeathLink Triggered!",
+          "death",
+          "DeathLink Triggered",
           `Submission failed (${statusMsg}) on "${titleSlug}". Sending death to multiworld...`,
-          "#ef4444",
         );
         chrome.runtime
           .sendMessage({
@@ -111,12 +127,11 @@ import {
     }
   });
 
-  // 5. In-page Toast Notifications
+  // 5. In-page Toast Notifications (antislop design with clean SVG icons)
   function showToast(
-    icon: string,
+    type: "item" | "trap" | "death" | "cleared" | "notice",
     title: string,
     text: string,
-    color = "#10b981",
   ) {
     let container = document.getElementById("archipelacode-toast-container");
     if (!container) {
@@ -136,25 +151,51 @@ import {
       document.body.appendChild(container);
     }
 
+    const configMap = {
+      cleared: {
+        color: "#10b981",
+        icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
+      },
+      item: {
+        color: "#10b981",
+        icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+      },
+      trap: {
+        color: "#f59e0b",
+        icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+      },
+      death: {
+        color: "#ef4444",
+        icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+      },
+      notice: {
+        color: "#3b82f6",
+        icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+      },
+    };
+
+    const currentConfig = configMap[type] || configMap.notice;
+
     const toast = document.createElement("div");
     toast.style.cssText = `
       background: #18181b;
-      border: 1px solid ${color};
+      border: 1px solid ${currentConfig.color};
       border-radius: 8px;
       padding: 12px 18px;
-      color: #ffffff;
+      color: #fafafa;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
       max-width: 380px;
       pointer-events: auto;
-      transition: all 0.3s ease;
+      transition: all 0.25s ease;
+      animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     `;
 
     toast.innerHTML = `
       <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:18px;">${icon}</span>
-        <strong style="color:${color}; font-size:14px;">${title}</strong>
+        ${currentConfig.icon}
+        <strong style="color:${currentConfig.color}; font-size:13px; font-weight:600;">${title}</strong>
       </div>
-      <p style="font-size:12px; color:#e4e4e7; margin:6px 0 0 0; line-height:1.4;">
+      <p style="font-size:12px; color:#d4d4d8; margin:6px 0 0 0; line-height:1.4;">
         ${text}
       </p>
     `;
@@ -163,7 +204,7 @@ import {
 
     setTimeout(() => {
       toast.style.opacity = "0";
-      setTimeout(() => toast.remove(), 400);
+      setTimeout(() => toast.remove(), 300);
     }, 5000);
   }
 
@@ -206,7 +247,7 @@ import {
     }
 
     if (!currentState || currentState.status !== "CONNECTED") {
-      badge.innerHTML = `<span style="color:#a1a1aa;">●</span> ArchipelaCode: Disconnected`;
+      badge.innerHTML = `<span style="color:#71717a;">●</span> ArchipelaCode: Disconnected`;
       badge.style.borderColor = "#3f3f46";
       return;
     }
@@ -215,16 +256,16 @@ import {
       (p) => p.titleSlug === titleSlug,
     );
     if (!problem) {
-      badge.innerHTML = `<span style="color:#71717a;">●</span> ArchipelaCode: Not in Multiworld Pool`;
-      badge.style.borderColor = "#3f3f46";
+      badge.innerHTML = `<span style="color:#52525b;">●</span> ArchipelaCode: Not in Multiworld Pool`;
+      badge.style.borderColor = "#27272a";
       return;
     }
 
     if (problem.category === ProblemCategory.Solved) {
-      badge.innerHTML = `<span style="color:#10b981;">✓</span> ArchipelaCode: Check Cleared`;
+      badge.innerHTML = `<span style="color:#10b981; font-weight:600;">✓</span> ArchipelaCode: Check Cleared`;
       badge.style.borderColor = "#10b981";
     } else if (problem.category === ProblemCategory.Locked) {
-      badge.innerHTML = `<span style="color:#f59e0b;">🔒</span> ArchipelaCode: Region Locked`;
+      badge.innerHTML = `<span style="color:#f59e0b;">●</span> ArchipelaCode: Region Locked`;
       badge.style.borderColor = "#f59e0b";
     } else {
       badge.innerHTML = `<span style="color:#3b82f6;">●</span> ArchipelaCode: Check Available (${problem.difficulty})`;

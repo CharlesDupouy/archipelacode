@@ -233,7 +233,7 @@ class ArchipelagoService {
     const goal = this.getEndGoal();
     if (this.client.room.checkedLocations.length + 1 >= goal) {
       this.client.goal();
-      this.chatLog.push("🎉 Goal Reached! You have cleared ArchipelaCode!");
+      this.chatLog.push("[GOAL REACHED] You have cleared ArchipelaCode!");
     }
 
     this.broadcastState();
