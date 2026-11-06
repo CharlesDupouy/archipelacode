@@ -82,14 +82,23 @@ class ArchipelagoService {
       this.broadcastState();
     });
 
+    this.client.room.on("locationsChecked", (locations: number[]) => {
+      console.log(
+        "[ArchipelaCode Offscreen] locationsChecked event received from server:",
+        locations,
+      );
+      this.broadcastState();
+    });
+
     this.client.items.on("itemsReceived", (items: Item[]) => {
       items.forEach((item) => {
-        const isTrap = item.name.toLowerCase().includes("trap");
+        const isTrap = (item.name || "").toLowerCase().includes("trap");
+        const senderName = item.sender?.name || "Server";
         chrome.runtime
           .sendMessage({
             type: "ITEM_RECEIVED",
             itemName: item.name,
-            sender: item.sender.name,
+            sender: senderName,
             isTrap,
           } as MessagePayload)
           .catch(() => {});
@@ -187,6 +196,8 @@ class ArchipelagoService {
     this.status = APStatus.DISCONNECTED;
     this.chatLog.push("[Connection] Disconnected.");
     this.broadcastState();
+    setTimeout(() => this.broadcastState(), 250);
+    setTimeout(() => this.broadcastState(), 1000);
   }
 
   public isDeathLinkEnabled(): boolean {
@@ -258,6 +269,8 @@ class ArchipelagoService {
     }
 
     this.broadcastState();
+    setTimeout(() => this.broadcastState(), 250);
+    setTimeout(() => this.broadcastState(), 1000);
   }
 
   private titleSlugToLocationId(titleSlug: string): number {

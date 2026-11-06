@@ -30,20 +30,24 @@ import {
 
   // 3. Listen for state updates and notifications from background
   chrome.runtime.onMessage.addListener((message: MessagePayload) => {
-    if (message.type === "STATE_UPDATED") {
-      updateState(message.state);
-    } else if (message.type === "ITEM_RECEIVED") {
-      showToast(
-        message.isTrap ? "trap" : "item",
-        message.isTrap ? "TRAP ACTIVATED" : "Archipelago Item Received",
-        `Received ${message.itemName} from ${message.sender}`,
-      );
-    } else if (message.type === "DEATH_LINK_RECEIVED") {
-      showToast(
-        "death",
-        "DeathLink Received",
-        `${message.source} died${message.cause ? `: ${message.cause}` : ""}`,
-      );
+    try {
+      if (message.type === "STATE_UPDATED") {
+        updateState(message.state);
+      } else if (message.type === "ITEM_RECEIVED") {
+        showToast(
+          message.isTrap ? "trap" : "item",
+          message.isTrap ? "TRAP ACTIVATED" : "Archipelago Item Received",
+          `Received ${message.itemName} from ${message.sender}`,
+        );
+      } else if (message.type === "DEATH_LINK_RECEIVED") {
+        showToast(
+          "death",
+          "DeathLink Received",
+          `${message.source} died${message.cause ? `: ${message.cause}` : ""}`,
+        );
+      }
+    } catch (err) {
+      console.warn("[ArchipelaCode Content] Error handling message:", err);
     }
   });
 
@@ -87,7 +91,7 @@ import {
         currentState.problems.length > 0
       ) {
         const problem = currentState.problems.find(
-          (p) => p.titleSlug.toLowerCase().trim() === titleSlug,
+          (p) => (p?.titleSlug || "").toLowerCase().trim() === titleSlug,
         );
         if (!problem) {
           console.warn(
@@ -243,66 +247,74 @@ import {
 
   // 6. Floating Status Badge on LeetCode Problem Page
   function updateFloatingBadge() {
-    const match = window.location.pathname.match(/\/problems\/([^/]+)/);
-    if (!match) return;
-    const titleSlug = match[1].toLowerCase().trim();
+    try {
+      const match = window.location.pathname.match(/\/problems\/([^/]+)/);
+      if (!match) return;
+      const titleSlug = match[1].toLowerCase().trim();
 
-    let badge = document.getElementById("archipelacode-floating-badge");
-    if (!badge) {
-      badge = document.createElement("div");
-      badge.id = "archipelacode-floating-badge";
-      badge.style.cssText = `
-        position: fixed;
-        top: 60px;
-        right: 20px;
-        z-index: 999999;
-        background: rgba(24, 24, 27, 0.95);
-        backdrop-filter: blur(8px);
-        border: 1px solid #3f3f46;
-        border-radius: 20px;
-        padding: 6px 14px;
-        font-size: 12px;
-        font-weight: 500;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        color: #ffffff;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        cursor: pointer;
-        user-select: none;
-        transition: all 0.2s ease;
-      `;
-      badge.onclick = () => {
-        chrome.runtime.sendMessage({ type: "GET_STATE" });
-      };
-      document.body.appendChild(badge);
-    }
+      let badge = document.getElementById("archipelacode-floating-badge");
+      if (!badge) {
+        badge = document.createElement("div");
+        badge.id = "archipelacode-floating-badge";
+        badge.style.cssText = `
+          position: fixed;
+          top: 60px;
+          right: 20px;
+          z-index: 999999;
+          background: rgba(24, 24, 27, 0.95);
+          backdrop-filter: blur(8px);
+          border: 1px solid #3f3f46;
+          border-radius: 20px;
+          padding: 6px 14px;
+          font-size: 12px;
+          font-weight: 500;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          color: #ffffff;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+          user-select: none;
+          transition: all 0.2s ease;
+        `;
+        badge.onclick = () => {
+          chrome.runtime.sendMessage({ type: "GET_STATE" });
+        };
+        document.body.appendChild(badge);
+      }
 
-    if (!currentState || currentState.status !== "CONNECTED") {
-      badge.innerHTML = `<span style="color:#71717a;">●</span> ArchipelaCode: Disconnected`;
-      badge.style.borderColor = "#3f3f46";
-      return;
-    }
+      if (!currentState || currentState.status !== "CONNECTED") {
+        badge.innerHTML = `<span style="color:#71717a;">●</span> ArchipelaCode: Disconnected`;
+        badge.style.borderColor = "#3f3f46";
+        return;
+      }
 
-    const problem = currentState.problems.find(
-      (p) => p.titleSlug.toLowerCase().trim() === titleSlug,
-    );
-    if (!problem) {
-      badge.innerHTML = `<span style="color:#52525b;">●</span> ArchipelaCode: Not in Multiworld Pool`;
-      badge.style.borderColor = "#27272a";
-      return;
-    }
+      const problems = currentState.problems || [];
+      const problem = problems.find(
+        (p) => (p?.titleSlug || "").toLowerCase().trim() === titleSlug,
+      );
+      if (!problem) {
+        badge.innerHTML = `<span style="color:#52525b;">●</span> ArchipelaCode: Not in Multiworld Pool`;
+        badge.style.borderColor = "#27272a";
+        return;
+      }
 
-    if (problem.category === ProblemCategory.Solved) {
-      badge.innerHTML = `<span style="color:#10b981; font-weight:600;">✓</span> ArchipelaCode: Check Cleared`;
-      badge.style.borderColor = "#10b981";
-    } else if (problem.category === ProblemCategory.Locked) {
-      badge.innerHTML = `<span style="color:#f59e0b;">●</span> ArchipelaCode: Region Locked`;
-      badge.style.borderColor = "#f59e0b";
-    } else {
-      badge.innerHTML = `<span style="color:#3b82f6;">●</span> ArchipelaCode: Check Available (${problem.difficulty})`;
-      badge.style.borderColor = "#3b82f6";
+      if (problem.category === ProblemCategory.Solved) {
+        badge.innerHTML = `<span style="color:#10b981; font-weight:600;">✓</span> ArchipelaCode: Check Cleared`;
+        badge.style.borderColor = "#10b981";
+      } else if (problem.category === ProblemCategory.Locked) {
+        badge.innerHTML = `<span style="color:#f59e0b;">●</span> ArchipelaCode: Region Locked`;
+        badge.style.borderColor = "#f59e0b";
+      } else {
+        badge.innerHTML = `<span style="color:#3b82f6;">●</span> ArchipelaCode: Check Available (${problem.difficulty})`;
+        badge.style.borderColor = "#3b82f6";
+      }
+    } catch (err) {
+      console.warn(
+        "[ArchipelaCode Content] Error in updateFloatingBadge:",
+        err,
+      );
     }
   }
 
