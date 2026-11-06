@@ -1,6 +1,9 @@
 /** @format */
 import { apController } from "./archipelago";
-import { BaseLanguageVerifier } from "./languages/base_lang_verifier";
+import {
+  BaseLanguageVerifier,
+  ViolationSpan,
+} from "./languages/base_lang_verifier";
 import {
   javascriptVerifier,
   pythonVerifier,
@@ -34,6 +37,21 @@ class APVerifier {
     this.includedVerifiers.push(universalVerifier);
   }
 
+  public getViolations(lang: string, fileContents: string): ViolationSpan[] {
+    let violations: ViolationSpan[] = [];
+    // If not initialized yet, fallback to checking against all verifiers
+    const verifiers =
+      this.includedVerifiers.length > 0 ?
+        this.includedVerifiers
+      : this.languageVerifiers;
+    verifiers.forEach((verifier) => {
+      if (verifier.langSlugs.includes(lang) && verifier.getViolations) {
+        violations = violations.concat(verifier.getViolations(fileContents));
+      }
+    });
+    return violations;
+  }
+
   public async verifySubmission(
     lang: string,
     fileContents: string,
@@ -42,7 +60,11 @@ class APVerifier {
     let result: boolean;
     let missingItems: number[];
     let totalMissingItems: number[] = [];
-    this.includedVerifiers.forEach((verifier) => {
+    const verifiers =
+      this.includedVerifiers.length > 0 ?
+        this.includedVerifiers
+      : this.languageVerifiers;
+    verifiers.forEach((verifier) => {
       if (verifier.langSlugs.includes(lang)) {
         [result, missingItems] = verifier.verify(fileContents);
         if (!result) {

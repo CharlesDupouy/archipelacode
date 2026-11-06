@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { apVerifier } from "./apVerifier";
 import { apController } from "./archipelago";
 import * as commands from "./commands/commands";
+import { diagnosticsManager } from "./diagnostics";
 import { globalState } from "./globalState";
 import { leetCodeController } from "./leetcode";
 import { archipelacodeChannel } from "./outputChannel";
@@ -12,6 +13,7 @@ import { ArchipelaCodeTreeViewNode as ArchipelaCodeNode } from "./treeView/treeV
 
 export function activate(context: vscode.ExtensionContext) {
   globalState.initialize(context);
+  diagnosticsManager.initialize(context);
 
   vscode.window.registerUriHandler({
     handleUri: leetCodeController.handleUriSignIn,
@@ -33,15 +35,18 @@ export function activate(context: vscode.ExtensionContext) {
       await leetCodeController.initializeClient(undefined, undefined);
       await apVerifier.initialize();
       await archipelaCodeTreeDataProvider.refresh();
+      diagnosticsManager.refreshAll();
     }),
     vscode.commands.registerCommand("archipelacode.reconnect", async () => {
       await commands.reconnect();
       await apVerifier.initialize();
       await archipelaCodeTreeDataProvider.refresh();
+      diagnosticsManager.refreshAll();
     }),
     vscode.commands.registerCommand("archipelacode.disconnect", async () => {
       await commands.disconnect();
       await archipelaCodeTreeDataProvider.refresh();
+      diagnosticsManager.clear();
     }),
     vscode.commands.registerCommand("archipelacode.listItems", () => {
       commands.listItems();
@@ -76,6 +81,12 @@ export function activate(context: vscode.ExtensionContext) {
       },
     ),
     vscode.commands.registerCommand(
+      "archipelacode.setDifficultyFilter",
+      async () => {
+        await commands.setDifficultyFilter();
+      },
+    ),
+    vscode.commands.registerCommand(
       "archipelacode.openProblemInEditor",
       async (node: ArchipelaCodeNode) => {
         await commands.openProblemInEditor(node);
@@ -90,4 +101,6 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
-export function deactivate() {}
+export function deactivate() {
+  diagnosticsManager.clear();
+}

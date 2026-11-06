@@ -23,19 +23,23 @@ export async function openProblemInEditor(node: ArchipelaCodeTreeViewNode) {
     }
     let picks: Array<IQuickItemEx<string>> = [];
     let includedLangSlugs: string[] = [];
-    apController.getEnabledLanguages().forEach((entry) => {
-      if (entry.enabled) {
-        includedLangSlugs.push(entry.langSlug);
-      }
-    });
-    problem.codeSnippets.forEach((entry) => {
-      if (includedLangSlugs.includes(entry.langSlug)) {
-        picks.push({
-          label: entry.lang,
-          value: entry.langSlug,
-        });
-      }
-    });
+    apController
+      .getEnabledLanguages()
+      .forEach((entry: { langSlug: string; enabled: boolean }) => {
+        if (entry.enabled) {
+          includedLangSlugs.push(entry.langSlug);
+        }
+      });
+    problem.codeSnippets?.forEach(
+      (entry: { lang: string; langSlug: string }) => {
+        if (includedLangSlugs.includes(entry.langSlug)) {
+          picks.push({
+            label: entry.lang,
+            value: entry.langSlug,
+          });
+        }
+      },
+    );
 
     const choice: IQuickItemEx<string> | undefined =
       await vscode.window.showQuickPick(picks);

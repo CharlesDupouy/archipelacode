@@ -1,11 +1,21 @@
 /** @format */
 
+export interface ViolationSpan {
+  itemId: number;
+  itemName: string;
+  token: string;
+  line: number;
+  startCol: number;
+  endCol: number;
+}
+
 export interface BaseLanguageVerifier {
-  regexes: RegExEntry[];
+  regexes?: RegExEntry[];
   langSlugs: string[];
-  lastGeneratedLineRegex: RegExp;
+  lastGeneratedLineRegex?: RegExp;
   verify(fileContents: string): [boolean, number[]];
   checkIfLineIsAComment(line: string): boolean;
+  getViolations?(fileContents: string): ViolationSpan[];
 }
 
 export interface RegExEntry {

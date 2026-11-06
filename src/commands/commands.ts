@@ -8,6 +8,7 @@ export { openProblemInBrowser } from "./openProblemInBrowser";
 export { openProblemInEditor } from "./openProblemInEditor";
 export { reconnect } from "./reconnect";
 export { sendMessage } from "./sendMessage";
+export { setDifficultyFilter } from "./setDifficultyFilter";
 export { setStatus } from "./setStatus";
 export { start } from "./start";
 export { submitCode } from "./submitCode";

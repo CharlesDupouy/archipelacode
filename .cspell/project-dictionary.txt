@@ -1,2 +1,12 @@
 archipelacode
 jdneo
+leetcode
+multiworld
+multiworlds
+mutiworld
+apworld
+bitshift
+docstrings
+unpick
+progression
+vsix

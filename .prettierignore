@@ -2,3 +2,5 @@
 out
 dist
 .vscode-test/
+apworld/**
+src/data/problems.json

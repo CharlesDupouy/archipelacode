@@ -9,9 +9,9 @@
     "url": "https://github.com/ShackledMars261/archipelacode.git"
   },
   "icon": "./resources/archipelago_icon128x128.png",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
-    "vscode": "^1.103.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
@@ -55,6 +55,11 @@
       {
         "command": "archipelacode.openProblemInEditor",
         "title": "Opens a Problem in the Editor",
+        "category": "ArchipelaCode"
+      },
+      {
+        "command": "archipelacode.setDifficultyFilter",
+        "title": "Set Problem Explorer Difficulty Filter",
         "category": "ArchipelaCode"
       },
       {
@@ -119,6 +124,24 @@
             "scope": "application",
             "description": "Add difficulty badge and colorize problems files in explorer tree."
           },
+          "archipelacode.difficultyFilter": {
+            "type": "string",
+            "default": "all",
+            "scope": "application",
+            "enum": [
+              "all",
+              "easy",
+              "medium",
+              "hard"
+            ],
+            "description": "Filter problems shown in Problem Explorer by difficulty."
+          },
+          "archipelacode.enableDeathLink": {
+            "type": "boolean",
+            "default": false,
+            "scope": "application",
+            "description": "Enable Archipelago DeathLink (failing LeetCode test cases sends a death)."
+          },
           "archipelacode.debug": {
             "type": "boolean",
             "default": false,
@@ -129,6 +152,18 @@
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "archipelacode.setDifficultyFilter",
+          "when": "view == archipelacodeTreeView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "archipelacode.refreshExplorer",
+          "when": "view == archipelacodeTreeView",
+          "group": "navigation@2"
+        }
+      ],
       "commandPalette": [
         {
           "command": "archipelacode.getStatus",
@@ -176,7 +211,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "yarn run package",
+    "build:apworld": "python3 apworld/build_apworld.py",
+    "package:vsix": "npx @vscode/vsce package --no-dependencies --no-yarn --no-git-tag-version",
+    "vscode:prepublish": "npm run package",
     "compile": "webpack",
     "watch": "webpack --watch",
     "package": "webpack --mode production --devtool hidden-source-map",
@@ -202,7 +239,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/uuid": "^10.0.0",
-    "@types/vscode": "^1.103.0",
+    "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
     "@vscode/test-cli": "^0.0.11",
@@ -232,7 +269,8 @@
   },
   "cspell": {
     "ignorePaths": [
-      "vsc-extension-quickstart.md"
+      "vsc-extension-quickstart.md",
+      "apworld/**"
     ],
     "dictionaries": [
       "ArchipelaCode Project"

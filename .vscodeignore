@@ -20,3 +20,5 @@ licenses.txt
 .prettierrc
 TODO.md
 test-fetch.js
+apworld/**
+dist/*.apworld

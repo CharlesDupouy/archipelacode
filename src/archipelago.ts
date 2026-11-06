@@ -2,6 +2,7 @@
 import * as vscode from "vscode";
 import packageJson from "../package.json";
 import problemsJson from "./data/problems.json";
+import { diagnosticsManager } from "./diagnostics";
 import { APConnectionInfo, globalState } from "./globalState";
 import { archipelacodeChannel } from "./outputChannel";
 import {
@@ -16,6 +17,10 @@ import {
 import { archipelaCodeTreeDataProvider } from "./treeView/treeDataProvider";
 import { countOccurrences, versionStringToVersion } from "./utils";
 
+type Item = import("archipelago.js", {
+  with: { "resolution-mode": "import" }
+}).Item;
+
 class ArchipelagoController {
   hostname: string = "archipelago.gg";
   port!: number;
@@ -25,15 +30,31 @@ class ArchipelagoController {
   protocol: string = "ws";
   client: any;
   uuid: string = "";
-  slotData!: import("archipelago.js", {
-    with: { "resolution-mode": "import" }
-  }).JSONRecord;
+  slotData!: any;
   extensionVersion!: VersionIdentifier;
 
   constructor() {}
 
   getUrl(): string {
     return `${this.protocol}://${this.hostname}:${this.port}`;
+  }
+
+  isDeathLinkEnabled(): boolean {
+    const config = vscode.workspace.getConfiguration("archipelacode");
+    const settingEnabled = config.get<boolean>("enableDeathLink", false);
+    const slotDataEnabled = Boolean(
+      this.slotData?.metadata &&
+        typeof this.slotData.metadata === "object" &&
+        (this.slotData.metadata as any).death_link,
+    );
+    return settingEnabled || slotDataEnabled;
+  }
+
+  sendDeathLink(cause: string): void {
+    if (this.isDeathLinkEnabled() && this.client?.deathLink) {
+      archipelacodeChannel.appendLine(`[DeathLink] Sending death: ${cause}`);
+      this.client.deathLink.sendDeathLink(this.slotname, cause);
+    }
   }
 
   async initializeClient(
@@ -49,22 +70,12 @@ class ArchipelagoController {
     this.status = APStatus.CONNECTING;
 
     this.extensionVersion = await this.getExtensionVersion();
-
     this.protocol = "ws";
 
     const { Client } = await import("archipelago.js");
-    type Item = import("archipelago.js", {
-      with: { "resolution-mode": "import" }
-    }).Item;
-    type MessageNode = import("archipelago.js", {
-      with: { "resolution-mode": "import" }
-    }).MessageNode;
-    this.client = new Client();
-
     const uuid = await import("uuid");
+    this.client = new Client();
     this.uuid = uuid.v4();
-
-    // archipelacodeChannel.appendLine(`Your UUID: ${this.uuid}`);
 
     this.client.messages.on("message", (text: string) => {
       archipelacodeChannel.appendLine(text);
@@ -75,52 +86,90 @@ class ArchipelagoController {
       async (items: Item[], startingIndex: number) => {
         await this.receiveItem(items, startingIndex);
         await archipelaCodeTreeDataProvider.refresh();
+        diagnosticsManager.refreshAll();
       },
     );
-    try {
-      if (!this.password) {
-        await this.client.login(this.getUrl(), this.slotname, "ArchipelaCode");
-      } else {
-        await this.client.login(this.getUrl(), this.slotname, "ArchipelaCode", {
-          items: 7,
-          password: this.password,
-          slotData: true,
-          tags: [],
-          uuid: this.uuid,
-          version: {
-            major: 0,
-            minor: 6,
-            build: 3,
-          },
-        });
+
+    this.client.deathLink.on(
+      "deathReceived",
+      (source: string, time: number, cause?: string) => {
+        const msg =
+          cause ?
+            `[DeathLink] Received death from ${source}: ${cause}`
+          : `[DeathLink] Received death from ${source}!`;
+        vscode.window.showErrorMessage(msg);
+        archipelacodeChannel.appendLine(msg);
+      },
+    );
+
+    this.client.socket.on("disconnected", () => {
+      if (this.status === APStatus.CONNECTED) {
+        this.status = APStatus.DISCONNECTED;
+        vscode.window.showWarningMessage(
+          "Archipelago connection lost. Will attempt to reconnect in 5 seconds...",
+        );
+        archipelacodeChannel.appendLine(
+          "Archipelago connection lost. Scheduling reconnect...",
+        );
+        setTimeout(async () => {
+          try {
+            await this.reconnect();
+          } catch (e) {
+            archipelacodeChannel.appendLine(`Auto-reconnect failed: ${e}`);
+          }
+        }, 5000);
       }
+    });
+
+    const tags: string[] = [];
+    if (this.isDeathLinkEnabled()) {
+      tags.push("DeathLink");
+    }
+
+    const loginOptions = {
+      items: 7,
+      password: this.password,
+      slotData: true,
+      tags,
+      uuid: this.uuid,
+      version: {
+        major: 0,
+        minor: 5,
+        build: 0,
+      },
+    };
+
+    try {
+      await this.client.login(
+        this.getUrl(),
+        this.slotname,
+        "ArchipelaCode",
+        loginOptions,
+      );
     } catch {
       this.protocol = "wss";
-      if (!this.password) {
-        await this.client.login(this.getUrl(), this.slotname, "ArchipelaCode");
-      } else {
-        await this.client.login(this.getUrl(), this.slotname, "ArchipelaCode", {
-          items: 7,
-          password: this.password,
-          slotData: true,
-          tags: [],
-          uuid: this.uuid,
-          version: {
-            major: 0,
-            minor: 6,
-            build: 3,
-          },
-        });
-      }
+      await this.client.login(
+        this.getUrl(),
+        this.slotname,
+        "ArchipelaCode",
+        loginOptions,
+      );
     }
+
     this.slotData = await this.client.players.self.fetchSlotData();
     this.status = APStatus.CONNECTED;
+
+    if (this.isDeathLinkEnabled()) {
+      this.client.deathLink.enableDeathLink();
+      archipelacodeChannel.appendLine("[DeathLink] DeathLink is active.");
+    }
+
     if (!(await this.checkVersion())) {
-      vscode.window.showErrorMessage(
-        "Extension is outdated! Please update the extension before continuing.",
+      vscode.window.showWarningMessage(
+        "Extension version differs from APWorld recommendation. You may want to check for updates.",
       );
       archipelacodeChannel.appendLine(
-        "Extension is outdated! Please update the extension before continuing.",
+        "Notice: Extension version differs from APWorld recommendation.",
       );
     }
 
@@ -132,6 +181,21 @@ class ArchipelagoController {
     };
 
     globalState.setAPConnectionInfo(connectionInfo);
+    diagnosticsManager.refreshAll();
+  }
+
+  async reconnect(): Promise<void> {
+    const info = globalState.getAPConnectionInfo();
+    if (!info) {
+      return;
+    }
+    await this.disconnectIfConnected();
+    await this.initializeClient(
+      info.hostname,
+      info.port,
+      info.slotname,
+      info.password,
+    );
   }
 
   async getExtensionVersion(): Promise<VersionIdentifier> {
@@ -141,11 +205,11 @@ class ArchipelagoController {
   async checkVersion(): Promise<boolean> {
     let extensionVersion: VersionIdentifier = await this.getExtensionVersion();
     let apworldVersion: VersionIdentifier = {
-      major: 999,
-      minor: 999,
-      build: 999,
+      major: 0,
+      minor: 0,
+      build: 1,
     };
-    let metadata = this.slotData.metadata;
+    let metadata = this.slotData?.metadata;
     if (metadata && typeof metadata === "object") {
       for (const [key, value] of Object.entries(metadata)) {
         if (key === "minimum_extension_version") {
@@ -153,72 +217,83 @@ class ArchipelagoController {
         }
       }
     }
-    let result: boolean = false;
     if (extensionVersion.major > apworldVersion.major) {
-      result = true;
+      return true;
     } else if (
       extensionVersion.major === apworldVersion.major &&
       extensionVersion.minor > apworldVersion.minor
     ) {
-      result = true;
+      return true;
     } else if (
       extensionVersion.major === apworldVersion.major &&
       extensionVersion.minor === apworldVersion.minor &&
       extensionVersion.build >= apworldVersion.build
     ) {
-      result = true;
-    } else {
-      result = false;
+      return true;
     }
-    return result;
+    return false;
   }
 
   async disconnectIfConnected(): Promise<void> {
-    if (this.status === APStatus.CONNECTED) {
+    if (
+      this.status === APStatus.CONNECTED ||
+      this.status === APStatus.CONNECTING
+    ) {
       this.status = APStatus.DISCONNECTING;
-      this.client.socket.disconnect();
+      try {
+        this.client?.socket?.disconnect();
+      } catch (err) {
+        // ignore
+      }
       this.status = APStatus.DISCONNECTED;
+      diagnosticsManager.clear();
     }
   }
 
   async hasLocationBeenClaimedPreviously(titleSlug: string): Promise<boolean> {
     let locationID = this.titleSlugToLocationId(titleSlug);
-    return this.client.room.checkedLocations.includes(locationID);
+    return Boolean(this.client?.room?.checkedLocations?.includes(locationID));
   }
 
   async sendCheck(titleSlug: string) {
     let locationID = this.titleSlugToLocationId(titleSlug);
     archipelacodeChannel.appendLine(
-      `Sending check for location '${locationID}'`,
+      `Sending check for location '${locationID}' (${titleSlug})`,
     );
     await this.client.check(locationID);
     if (this.client.room.checkedLocations.length + 1 >= this.getEndGoal()) {
       this.client.goal();
+      vscode.window.showInformationMessage(
+        "🎉 Goal completed! You have won ArchipelaCode!",
+      );
     }
     await archipelaCodeTreeDataProvider.refresh();
   }
 
   titleSlugToLocationId(titleSlug: string): number {
     let locationID = -1;
-    Object.entries(problemsJson.problems).forEach((entry) => {
-      if (entry[0] === titleSlug) {
-        locationID = entry[1].locationId;
-      }
-    });
+    const problems = (problemsJson as any).problems;
+    if (problems && problems[titleSlug]) {
+      locationID = problems[titleSlug].locationId;
+    }
     return locationID;
   }
 
-  async receiveItem(
-    items: import("archipelago.js", {
-      with: { "resolution-mode": "import" }
-    }).Item[],
-    startingIndex: number,
-  ) {
-    if (!(this.status === APStatus.CONNECTING)) {
-      items.forEach(async (item) => {
-        vscode.window.showInformationMessage(
-          `Received ${item.name} from ${item.sender.name}`,
-        );
+  async receiveItem(items: Item[], startingIndex: number) {
+    if (this.status !== APStatus.CONNECTING) {
+      items.forEach((item) => {
+        if (item.name.toLowerCase().includes("trap")) {
+          vscode.window.showWarningMessage(
+            `⚠️ [TRAP ACTIVATED] Received ${item.name} from ${item.sender.name}!`,
+          );
+          archipelacodeChannel.appendLine(
+            `⚠️ [TRAP] Received ${item.name} from ${item.sender.name}!`,
+          );
+        } else {
+          vscode.window.showInformationMessage(
+            `Received ${item.name} from ${item.sender.name}`,
+          );
+        }
       });
     }
   }
@@ -238,20 +313,16 @@ class ArchipelagoController {
   }
 
   async isLocationIncluded(locationId: number): Promise<boolean> {
-    if (this.client.room.allLocations.includes(locationId)) {
-      return true;
-    } else {
-      return false;
-    }
+    return Boolean(this.client?.room?.allLocations?.includes(locationId));
   }
 
   async getRegionFromLocationId(locationId: number): Promise<number> {
-    let regions = this.slotData.regions;
+    let regions = this.slotData?.regions;
     if (regions && typeof regions === "object") {
       for (const [key, locations] of Object.entries(regions)) {
         let regionId = Number(key);
         if (locations && typeof locations === "object") {
-          for (const [locId, location] of Object.entries(locations)) {
+          for (const [locId] of Object.entries(locations)) {
             if (Number(locId) === locationId) {
               return regionId;
             }
@@ -263,7 +334,7 @@ class ArchipelagoController {
   }
 
   itemIdToName(itemId: number): string {
-    let items = this.slotData.items;
+    let items = this.slotData?.items;
     if (items && typeof items === "object") {
       for (const [key, value] of Object.entries(items)) {
         if (key === String(itemId)) {
@@ -275,7 +346,7 @@ class ArchipelagoController {
   }
 
   getEndGoal(): number {
-    let metadata = this.slotData.metadata;
+    let metadata = this.slotData?.metadata;
     if (metadata && typeof metadata === "object") {
       for (const [key, value] of Object.entries(metadata)) {
         if (key === "EndGoal") {
@@ -288,7 +359,7 @@ class ArchipelagoController {
 
   getEnabledLanguages(): LangEnable[] {
     let result: LangEnable[] = [];
-    let metadata = this.slotData.metadata;
+    let metadata = this.slotData?.metadata;
     if (metadata && typeof metadata === "object") {
       for (const [key, value] of Object.entries(metadata)) {
         if (key === "included_languages") {
@@ -308,23 +379,25 @@ class ArchipelagoController {
 
   async getAllLocations(): Promise<Problem[]> {
     let problems: Problem[] = [];
-    for (const [name, entry] of Object.entries(problemsJson.problems)) {
-      if (await this.isLocationIncluded(entry.locationId)) {
+    const probMap = (problemsJson as any).problems;
+    for (const [, entry] of Object.entries(probMap)) {
+      const e = entry as any;
+      if (await this.isLocationIncluded(e.locationId)) {
         problems.push({
-          id: entry.id,
-          difficulty: entry.difficulty,
-          title: entry.title,
-          titleSlug: entry.titleSlug,
-          problemUrl: entry.problemUrl,
-          locationId: entry.locationId,
+          id: e.id,
+          difficulty: e.difficulty,
+          title: e.title,
+          titleSlug: e.titleSlug,
+          problemUrl: e.problemUrl,
+          locationId: e.locationId,
           category:
-            (await this.isLocationLocked(entry)) ? Category.Locked
-            : (await this.hasLocationBeenClaimedPreviously(entry.titleSlug)) ?
+            (await this.isLocationLocked(e)) ? Category.Locked
+            : (await this.hasLocationBeenClaimedPreviously(e.titleSlug)) ?
               Category.Solved
             : Category.Available,
           state:
-            (await this.isLocationLocked(entry)) ? State.Locked
-            : (await this.hasLocationBeenClaimedPreviously(entry.titleSlug)) ?
+            (await this.isLocationLocked(e)) ? State.Locked
+            : (await this.hasLocationBeenClaimedPreviously(e.titleSlug)) ?
               State.Solved
             : State.Unsolved,
         });
@@ -338,10 +411,7 @@ class ArchipelagoController {
   }
 
   getReceivedItemNames(): string[] {
-    type Item = import("archipelago.js", {
-      with: { "resolution-mode": "import" }
-    }).Item;
-    let items: Item[] = this.client.items.received;
+    let items: Item[] = this.client?.items?.received ?? [];
     let names: string[] = [];
     items.forEach((item) => {
       names.push(item.name);
