@@ -75,17 +75,32 @@ import {
         "*",
       );
     } else if (event.data.type === "ARCHIPELACODE_ACCEPTED") {
-      const titleSlug = event.data.titleSlug;
-      const problem = currentState?.problems.find(
-        (p) => p.titleSlug === titleSlug,
+      const rawTitleSlug = event.data.titleSlug || "";
+      const titleSlug = rawTitleSlug.toLowerCase().trim();
+      console.log(
+        `[ArchipelaCode Content] Received ARCHIPELACODE_ACCEPTED for "${titleSlug}"`,
       );
-      if (!problem) {
-        // Not in current multiworld pool
-        return;
-      }
-      if (problem.category === ProblemCategory.Solved) {
-        // Already cleared
-        return;
+
+      if (
+        currentState &&
+        currentState.problems &&
+        currentState.problems.length > 0
+      ) {
+        const problem = currentState.problems.find(
+          (p) => p.titleSlug.toLowerCase().trim() === titleSlug,
+        );
+        if (!problem) {
+          console.warn(
+            `[ArchipelaCode Content] Problem "${titleSlug}" is not in current multiworld pool. Ignoring check.`,
+          );
+          return;
+        }
+        if (problem.category === ProblemCategory.Solved) {
+          console.log(
+            `[ArchipelaCode Content] Problem "${titleSlug}" is already marked as solved.`,
+          );
+          return;
+        }
       }
 
       showToast(
@@ -93,22 +108,40 @@ import {
         "Problem Cleared",
         `Accepted by LeetCode! Sending check for "${titleSlug}" to Archipelago...`,
       );
+
       chrome.runtime
         .sendMessage({
           type: "SEND_CHECK",
           titleSlug,
         } as MessagePayload)
-        .catch(() => {});
+        .then((res) => {
+          console.log(
+            `[ArchipelaCode Content] SEND_CHECK dispatched successfully:`,
+            res,
+          );
+        })
+        .catch((err) => {
+          console.error(
+            `[ArchipelaCode Content] Failed to dispatch SEND_CHECK:`,
+            err,
+          );
+        });
     } else if (event.data.type === "ARCHIPELACODE_FAILED") {
-      const titleSlug = event.data.titleSlug;
+      const rawTitleSlug = event.data.titleSlug || "";
+      const titleSlug = rawTitleSlug.toLowerCase().trim();
       const statusMsg = event.data.statusMsg;
 
-      const problem = currentState?.problems.find(
-        (p) => p.titleSlug === titleSlug,
-      );
-      if (!problem) {
-        // Not in multiworld pool, don't trigger deathlink
-        return;
+      if (
+        currentState &&
+        currentState.problems &&
+        currentState.problems.length > 0
+      ) {
+        const problem = currentState.problems.find(
+          (p) => p.titleSlug.toLowerCase().trim() === titleSlug,
+        );
+        if (!problem) {
+          return;
+        }
       }
 
       if (currentState?.deathLinkEnabled) {
@@ -212,7 +245,7 @@ import {
   function updateFloatingBadge() {
     const match = window.location.pathname.match(/\/problems\/([^/]+)/);
     if (!match) return;
-    const titleSlug = match[1];
+    const titleSlug = match[1].toLowerCase().trim();
 
     let badge = document.getElementById("archipelacode-floating-badge");
     if (!badge) {
@@ -253,7 +286,7 @@ import {
     }
 
     const problem = currentState.problems.find(
-      (p) => p.titleSlug === titleSlug,
+      (p) => p.titleSlug.toLowerCase().trim() === titleSlug,
     );
     if (!problem) {
       badge.innerHTML = `<span style="color:#52525b;">●</span> ArchipelaCode: Not in Multiworld Pool`;

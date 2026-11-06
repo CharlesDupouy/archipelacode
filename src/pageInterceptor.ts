@@ -8,8 +8,9 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
 (() => {
   let unlockedItemIds: Set<number> = new Set();
   const activeSubmissionIds = new Set<string>();
+  const activeInterpretIds = new Set<string>();
   const submissionSlugMap = new Map<string, string>();
-  const processedSubmissions = new Set<string>();
+  const processedChecks = new Set<string>();
 
   // Listen for unlocked items updates from content script
   window.addEventListener("message", (event) => {
@@ -107,6 +108,12 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
 
     // 1. Intercept LeetCode test run route: /problems/<slug>/interpret_solution/
     if (url.includes("/problems/") && url.includes("/interpret_solution/")) {
+      const match = url.match(/\/problems\/([^/]+)\/interpret_solution\//);
+      const titleSlug = match ? match[1].toLowerCase().trim() : "";
+      console.log(
+        `[ArchipelaCode Interceptor] Detected TEST RUN (interpret) for slug: "${titleSlug}"`,
+      );
+
       if (config && config.body) {
         try {
           const body = JSON.parse(config.body.toString());
@@ -123,17 +130,47 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
             }
           }
         } catch (e) {
-          console.warn("[ArchipelaCode] Error analyzing test run code:", e);
+          console.warn(
+            "[ArchipelaCode Interceptor] Error analyzing test run code:",
+            e,
+          );
         }
       }
-      // Allow test run to proceed
-      return originalFetch.apply(this, args);
+
+      const response = await originalFetch.apply(this, args);
+
+      try {
+        const clone = response.clone();
+        clone
+          .json()
+          .then((resData) => {
+            if (resData && resData.interpret_id) {
+              const interpId = String(resData.interpret_id);
+              console.log(
+                `[ArchipelaCode Interceptor] Registered test run interpret_id: ${interpId}`,
+              );
+              activeInterpretIds.add(interpId);
+              setTimeout(
+                () => activeInterpretIds.delete(interpId),
+                5 * 60 * 1000,
+              );
+            }
+          })
+          .catch(() => {});
+      } catch (e) {
+        // ignore
+      }
+
+      return response;
     }
 
     // 2. Intercept LeetCode official submit route: /problems/<slug>/submit/
     if (url.includes("/problems/") && url.includes("/submit/")) {
       const match = url.match(/\/problems\/([^/]+)\/submit\//);
-      const titleSlug = match ? match[1] : "";
+      const titleSlug = match ? match[1].toLowerCase().trim() : "";
+      console.log(
+        `[ArchipelaCode Interceptor] Detected OFFICIAL SUBMISSION for slug: "${titleSlug}"`,
+      );
 
       if (config && config.body) {
         try {
@@ -147,6 +184,10 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
               const uniqueMissingNames = Array.from(
                 new Set(violations.map((v) => v.itemName)),
               );
+              console.warn(
+                "[ArchipelaCode Interceptor] Submission blocked due to locked features:",
+                uniqueMissingNames,
+              );
               showNotification("blocked", uniqueMissingNames);
 
               // Cancel submission
@@ -158,7 +199,7 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
             }
           }
         } catch (e) {
-          console.warn("[ArchipelaCode] Error analyzing code:", e);
+          console.warn("[ArchipelaCode Interceptor] Error analyzing code:", e);
         }
       }
 
@@ -173,6 +214,9 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
           .then((resData) => {
             if (resData && resData.submission_id) {
               const subIdStr = String(resData.submission_id);
+              console.log(
+                `[ArchipelaCode Interceptor] Registered official submission_id: ${subIdStr} for "${titleSlug}"`,
+              );
               activeSubmissionIds.add(subIdStr);
               if (titleSlug) {
                 submissionSlugMap.set(subIdStr, titleSlug);
@@ -209,66 +253,72 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
           .then((data) => {
             if (!data || data.state !== "SUCCESS") return;
 
+            console.log(
+              `[ArchipelaCode Interceptor] Polled check result for ID: ${checkId}`,
+              data,
+            );
+
             // Differentiate between "Run Code" (interpret_solution) and "Submit":
-            // Test runs (Play button) contain interpret_id, expected_code_answer, run_success, etc.
+            // Test runs contain interpret_id, expected_output array, input_formatted, or mysubmission_ prefix
             const isInterpret = Boolean(
-              data.interpret_id ||
+              (checkId && activeInterpretIds.has(checkId)) ||
+                (checkId && checkId.startsWith("mysubmission_")) ||
+                data.interpret_id ||
                 data.expected_code_answer !== undefined ||
-                data.expected_code_output !== undefined ||
-                data.run_success !== undefined ||
-                (checkId && checkId.startsWith("mysubmission_")),
+                Array.isArray(data.expected_output) ||
+                data.input_formatted !== undefined,
             );
 
             if (isInterpret) {
-              // This is a test run (Play button). Do NOT send checks or death link!
+              console.log(
+                `[ArchipelaCode Interceptor] Ignoring test run result for check ID: ${checkId}`,
+              );
+              if (checkId) activeInterpretIds.delete(checkId);
               return;
             }
 
-            const submissionId = data.submission_id
-              ? String(data.submission_id)
-              : checkId;
-
-            if (submissionId && processedSubmissions.has(submissionId)) {
+            // Official submission processing
+            if (checkId && processedChecks.has(checkId)) {
               return;
             }
-
-            const isKnownSubmission =
-              submissionId && activeSubmissionIds.has(submissionId);
-            const isOfficialSubmissionPayload = Boolean(
-              data.submission_id &&
-                !data.interpret_id &&
-                data.total_testcases !== undefined,
-            );
-
-            if (!isKnownSubmission && !isOfficialSubmissionPayload) {
-              // Not an official submission
-              return;
+            if (checkId) {
+              processedChecks.add(checkId);
+              setTimeout(() => processedChecks.delete(checkId), 60000);
             }
 
-            if (submissionId) {
-              processedSubmissions.add(submissionId);
-              activeSubmissionIds.delete(submissionId);
-              setTimeout(() => processedSubmissions.delete(submissionId), 60000);
-            }
-
-            const mappedSlug = submissionId
-              ? submissionSlugMap.get(submissionId)
-              : null;
-            if (submissionId) {
-              submissionSlugMap.delete(submissionId);
+            const mappedSlug = checkId ? submissionSlugMap.get(checkId) : null;
+            if (checkId) {
+              submissionSlugMap.delete(checkId);
+              activeSubmissionIds.delete(checkId);
             }
 
             const pathnameSlugMatch = window.location.pathname.match(
               /\/problems\/([^/]+)/,
             );
-            const titleSlug =
-              mappedSlug || (pathnameSlugMatch ? pathnameSlugMatch[1] : "");
+            const titleSlug = (
+              data.slug ||
+              mappedSlug ||
+              (pathnameSlugMatch ? pathnameSlugMatch[1] : "")
+            )
+              .toLowerCase()
+              .trim();
 
-            if (
-              data.status_msg === "Accepted" &&
-              (data.status_code === 10 ||
-                data.total_correct === data.total_testcases)
-            ) {
+            const isAccepted =
+              data.status_msg === "Accepted" || data.status_code === 10;
+
+            console.log(
+              `[ArchipelaCode Interceptor] Official submission verdict for "${titleSlug}":`,
+              {
+                status_msg: data.status_msg,
+                status_code: data.status_code,
+                isAccepted,
+              },
+            );
+
+            if (isAccepted) {
+              console.log(
+                `[ArchipelaCode Interceptor] Dispatching ARCHIPELACODE_ACCEPTED for "${titleSlug}"`,
+              );
               window.postMessage(
                 {
                   type: "ARCHIPELACODE_ACCEPTED",
@@ -277,6 +327,9 @@ import { analyzePythonFeatures } from "./languages/pythonLexer";
                 "*",
               );
             } else {
+              console.log(
+                `[ArchipelaCode Interceptor] Dispatching ARCHIPELACODE_FAILED for "${titleSlug}"`,
+              );
               window.postMessage(
                 {
                   type: "ARCHIPELACODE_FAILED",

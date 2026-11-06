@@ -213,21 +213,42 @@ class ArchipelagoService {
   }
 
   public async sendCheck(titleSlug: string) {
+    console.log(
+      `[ArchipelaCode Offscreen] sendCheck called for "${titleSlug}". AP status: ${this.status}`,
+    );
     if (!this.client || this.status !== APStatus.CONNECTED) {
+      console.warn(
+        "[ArchipelaCode Offscreen] Cannot send check: not connected.",
+      );
       return;
     }
 
     const locationId = this.titleSlugToLocationId(titleSlug);
+    console.log(
+      `[ArchipelaCode Offscreen] Resolved locationId for "${titleSlug}": ${locationId}`,
+    );
     if (locationId === -1) {
+      console.warn(
+        `[ArchipelaCode Offscreen] Problem "${titleSlug}" did not match any locationId in problems.json.`,
+      );
       return;
     }
 
     if (this.client.room.checkedLocations.includes(locationId)) {
+      console.log(
+        `[ArchipelaCode Offscreen] Location ${locationId} (${titleSlug}) was already checked.`,
+      );
       return;
     }
 
     this.chatLog.push(`Sending check for ${titleSlug} (id=${locationId})...`);
+    console.log(
+      `[ArchipelaCode Offscreen] Sending check ${locationId} to Archipelago server...`,
+    );
     await this.client.check(locationId);
+    console.log(
+      `[ArchipelaCode Offscreen] Check ${locationId} acknowledged by Archipelago.`,
+    );
 
     // Goal check
     const goal = this.getEndGoal();
@@ -241,8 +262,19 @@ class ArchipelagoService {
 
   private titleSlugToLocationId(titleSlug: string): number {
     const problems = (problemsJson as any).problems;
-    if (problems && problems[titleSlug]) {
-      return problems[titleSlug].locationId;
+    const cleanSlug = (titleSlug || "").toLowerCase().trim();
+    if (problems && problems[cleanSlug]) {
+      return problems[cleanSlug].locationId;
+    }
+    if (problems) {
+      for (const [key, val] of Object.entries(problems)) {
+        if (
+          key.toLowerCase().trim() === cleanSlug ||
+          (val as any).titleSlug?.toLowerCase().trim() === cleanSlug
+        ) {
+          return (val as any).locationId;
+        }
+      }
     }
     return -1;
   }
