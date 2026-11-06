@@ -116,6 +116,8 @@ btnConnect?.addEventListener("click", () => {
     password,
   };
 
+  chrome.storage.local.set({ archipelacodeConfig: config });
+
   chrome.runtime.sendMessage({
     type: "CONNECT_AP",
     config,

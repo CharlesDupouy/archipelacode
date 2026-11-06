@@ -56,6 +56,10 @@ chrome.runtime.onMessage.addListener(
         await setupOffscreenDocument();
       }
 
+      if (message.type === "CONNECT_AP") {
+        await chrome.storage.local.set({ archipelacodeConfig: message.config });
+      }
+
       // If state was updated from Offscreen, cache it in local storage
       if (message.type === "STATE_UPDATED") {
         await chrome.storage.local.set({ archipelacodeState: message.state });

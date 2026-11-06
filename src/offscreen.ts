@@ -22,7 +22,6 @@ class ArchipelagoService {
 
   constructor() {
     this.initMessageListener();
-    this.restoreCachedState();
   }
 
   private initMessageListener() {
@@ -59,16 +58,8 @@ class ArchipelagoService {
     );
   }
 
-  private async restoreCachedState() {
-    const data = await chrome.storage.local.get("archipelacodeConfig");
-    if (data.archipelacodeConfig) {
-      this.config = data.archipelacodeConfig;
-    }
-  }
-
   public async connect(config: APConnectionConfig) {
     this.config = config;
-    await chrome.storage.local.set({ archipelacodeConfig: config });
 
     this.status = APStatus.CONNECTING;
     this.broadcastState();
