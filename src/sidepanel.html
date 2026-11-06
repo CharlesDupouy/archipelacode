@@ -59,11 +59,19 @@
       </div>
     </div>
 
-    <!-- Navigation Tabs -->
+    <!-- Navigation Tabs (Vertically Stacked) -->
     <nav class="tab-nav">
-      <button class="tab-btn active" data-tab="problems">Problems</button>
-      <button class="tab-btn" data-tab="inventory">Inventory</button>
-      <button class="tab-btn" data-tab="chat">Chat / Log</button>
+      <button class="tab-btn active" data-tab="problems">
+        <span>📋 Problems Explorer</span>
+        <span id="tab-badge-problems" class="tab-badge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="inventory">
+        <span>🎒 Unlocked Features</span>
+        <span id="tab-badge-inventory" class="tab-badge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="chat">
+        <span>💬 Room Chat & Log</span>
+      </button>
     </nav>
 
     <!-- Problems Tab -->

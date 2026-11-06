@@ -229,6 +229,12 @@ function renderCounters() {
   countSolved.textContent = String(solved);
   countLocked.textContent = String(locked);
   countAll.textContent = String(problems.length);
+
+  const badgeProblems = document.getElementById("tab-badge-problems");
+  if (badgeProblems) badgeProblems.textContent = String(available);
+  const badgeInventory = document.getElementById("tab-badge-inventory");
+  if (badgeInventory)
+    badgeInventory.textContent = `${state.unlockedItemIds.length} unlocked`;
 }
 
 function renderProblems() {
