@@ -1,12 +1,31 @@
-# Archipelago Player Configuration for ArchipelaCode
-name: Player1
-game: ArchipelaCode
-description: Solo ArchipelaCode Playtest
+# ========================================================
+# ArchipelaCode Player Configuration (Archipelago 0.6.x+)
+# ========================================================
+name: Player1                      # Your in-game player name (used when connecting)
+game: ArchipelaCode                # Must be ArchipelaCode
+description: ArchipelaCode Settings
 
 ArchipelaCode:
+  # Progression balancing algorithm (0 = random/greedy, 50 = standard balance, 99 = heavy handholding)
   progression_balancing: 50
+
+  # Total number of LeetCode problems shuffled into the game (range: 30 to 200, default: 50)
   TotalProblemCount: 30
+
+  # Percentage of problems required to win the game (range: 1 to 100, default: 60)
+  # Example: 60% of 30 problems = 18 problems needed to trigger Victory.
   EndGoal: 60
+
+  # Programming language for the syntax lexer: python, javascript, typescript, golang (currently: python)
   LanguageChoice: python
+
+  # When enabled, failing test cases on LeetCode sends a death to all other DeathLink players in the multiworld.
   death_link: false
+
+  # When enabled, trap items may be received from the multiworld.
   enable_traps: false
+
+  # Optional: start with certain items already unlocked in your inventory upfront
+  # start_inventory_from_pool:
+  #   "While Loop": 1
+  #   "List / Sequence Data Structures": 1
